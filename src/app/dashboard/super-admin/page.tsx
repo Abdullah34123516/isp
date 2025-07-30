@@ -281,7 +281,11 @@ export default function SuperAdminDashboard() {
                 <Users className="h-6 w-6 mb-2" />
                 <span>Manage Users</span>
               </Button>
-              <Button variant="outline" className="h-20 flex-col">
+              <Button 
+                variant="outline" 
+                className="h-20 flex-col"
+                onClick={() => window.location.href = '/dashboard/super-admin/isp-owners'}
+              >
                 <Building2 className="h-6 w-6 mb-2" />
                 <span>ISP Owners</span>
               </Button>
