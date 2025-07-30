@@ -112,12 +112,6 @@ export function DashboardLayout({ children, title, role, user }: DashboardLayout
         return [
           ...baseItems,
           {
-            title: 'Customers',
-            href: `/dashboard/${role}/users`,
-            icon: Users,
-            badge: '12'
-          },
-          {
             title: 'Routers',
             href: `/dashboard/${role}/routers`,
             icon: RouterIcon

@@ -30,7 +30,18 @@ export async function GET(request: NextRequest) {
       where.ispOwnerId = tenantId;
     } else if (authResult.user!.role === UserRole.ISP_OWNER) {
       // ISP owners can only see their own plans
-      where.ispOwnerId = authResult.user!.tenantId;
+      const ispOwner = await db.ispOwner.findUnique({
+        where: { userId: authResult.user!.userId }
+      });
+      
+      if (!ispOwner) {
+        return NextResponse.json(
+          { error: 'ISP owner record not found' },
+          { status: 404 }
+        );
+      }
+      
+      where.ispOwnerId = ispOwner.id;
     }
 
     // Filter by active status
@@ -119,24 +130,18 @@ export async function POST(request: NextRequest) {
     
     if (authResult.user!.role === UserRole.ISP_OWNER) {
       // For ISP owners, get their ISP owner record
-      // First try to use tenantId from the token if available
-      if (authResult.user!.tenantId) {
-        finalTenantId = authResult.user!.tenantId;
-      } else {
-        // If not available, look up by userId
-        const ispOwner = await db.ispOwner.findUnique({
-          where: { userId: authResult.user!.userId }
-        });
-        
-        if (!ispOwner) {
-          return NextResponse.json(
-            { error: 'ISP owner record not found' },
-            { status: 404 }
-          );
-        }
-        
-        finalTenantId = ispOwner.id;
+      const ispOwner = await db.ispOwner.findUnique({
+        where: { userId: authResult.user!.userId }
+      });
+      
+      if (!ispOwner) {
+        return NextResponse.json(
+          { error: 'ISP owner record not found' },
+          { status: 404 }
+        );
       }
+      
+      finalTenantId = ispOwner.id;
     } else if (!finalTenantId) {
       return NextResponse.json(
         { error: 'Tenant ID is required' },
