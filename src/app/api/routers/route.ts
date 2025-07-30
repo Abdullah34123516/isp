@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { UserRole, RouterStatus } from '@/lib/db'
 import { checkRouterOnline } from '@/lib/routeros-client'
+import { authenticate, authorize, AuthenticatedRequest } from '@/lib/middleware'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
+
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
 
     const url = new URL(request.url)
     const ispOwnerId = url.searchParams.get('ispOwnerId')
 
     let routers
-    if (session.user.role === UserRole.SUPER_ADMIN) {
+    if (user.role === UserRole.SUPER_ADMIN) {
       // Super admin can see all routers
       routers = await db.router.findMany({
         include: {
@@ -42,10 +44,10 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { createdAt: 'desc' }
       })
-    } else if (session.user.role === UserRole.ISP_OWNER) {
+    } else if (user.role === UserRole.ISP_OWNER) {
       // ISP owner can only see their own routers
       routers = await db.router.findMany({
-        where: { ispOwnerId: session.user.tenantId },
+        where: { ispOwnerId: user.tenantId },
         include: {
           ispOwner: {
             include: {
@@ -100,13 +102,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
 
-    if (session.user.role !== UserRole.ISP_OWNER && session.user.role !== UserRole.SUPER_ADMIN) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
+
+    const authCheck = authorize([UserRole.ISP_OWNER, UserRole.SUPER_ADMIN])(authRequest)
+    if (authCheck) {
+      return authCheck
     }
 
     const body = await request.json()
@@ -127,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine ISP owner ID
-    const ispOwnerId = session.user.role === UserRole.ISP_OWNER ? session.user.tenantId : body.ispOwnerId
+    const ispOwnerId = user.role === UserRole.ISP_OWNER ? user.tenantId : body.ispOwnerId
 
     if (!ispOwnerId) {
       return NextResponse.json({ error: 'ISP owner ID is required' }, { status: 400 })

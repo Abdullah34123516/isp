@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { UserRole, RouterStatus } from '@/lib/db'
 import { checkRouterOnline, createRouterOSClient } from '@/lib/routeros-client'
+import { authenticate, authorizeTenantAccess, AuthenticatedRequest } from '@/lib/middleware'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
+
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
 
     const router = await db.router.findUnique({
       where: { id: params.id },
@@ -42,8 +44,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check permissions
-    if (session.user.role !== UserRole.SUPER_ADMIN && router.ispOwnerId !== session.user.tenantId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const accessCheck = authorizeTenantAccess(authRequest, router.ispOwnerId)
+    if (accessCheck) {
+      return accessCheck
     }
 
     // Check online status
@@ -67,10 +70,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
+
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
 
     const body = await request.json()
     const { name, ipAddress, port, username, password, location, model, firmware } = body
@@ -84,8 +90,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check permissions
-    if (session.user.role !== UserRole.SUPER_ADMIN && existingRouter.ispOwnerId !== session.user.tenantId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const accessCheck = authorizeTenantAccess(authRequest, existingRouter.ispOwnerId)
+    if (accessCheck) {
+      return accessCheck
     }
 
     // Check if new IP address conflicts with existing router
@@ -151,10 +158,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
+
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
 
     const router = await db.router.findUnique({
       where: { id: params.id }
@@ -165,8 +175,9 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Check permissions
-    if (session.user.role !== UserRole.SUPER_ADMIN && router.ispOwnerId !== session.user.tenantId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const accessCheck = authorizeTenantAccess(authRequest, router.ispOwnerId)
+    if (accessCheck) {
+      return accessCheck
     }
 
     // Check if router has PPPoE users
@@ -193,10 +204,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult instanceof NextResponse) {
+      return authResult
     }
+
+    const authRequest = authResult as AuthenticatedRequest
+    const user = authRequest.user!
 
     const body = await request.json()
     const { action } = body
@@ -210,8 +224,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // Check permissions
-    if (session.user.role !== UserRole.SUPER_ADMIN && router.ispOwnerId !== session.user.tenantId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const accessCheck = authorizeTenantAccess(authRequest, router.ispOwnerId)
+    if (accessCheck) {
+      return accessCheck
     }
 
     switch (action) {

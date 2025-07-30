@@ -48,10 +48,25 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
         params.append('ispOwnerId', ispOwnerId)
       }
       
-      const response = await fetch(`/api/routers?${params}`)
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('authToken')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      
+      const response = await fetch(`/api/routers?${params}`, { headers })
       if (response.ok) {
         const data = await response.json()
         setRouters(data)
+      } else if (response.status === 401) {
+        // Token expired or invalid, redirect to login
+        localStorage.removeItem('user')
+        localStorage.removeItem('authToken')
+        window.location.href = '/login'
       }
     } catch (error) {
       console.error('Error fetching routers:', error)
@@ -75,11 +90,19 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
       const url = editingRouter ? `/api/routers/${editingRouter.id}` : '/api/routers'
       const method = editingRouter ? 'PUT' : 'POST'
 
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('authToken')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(formData)
       })
 
@@ -89,7 +112,14 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
         resetForm()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to save router')
+        if (response.status === 401) {
+          // Token expired or invalid, redirect to login
+          localStorage.removeItem('user')
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+        } else {
+          alert(error.error || 'Failed to save router')
+        }
       }
     } catch (error) {
       console.error('Error saving router:', error)
@@ -116,15 +146,33 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
 
   const handleDelete = async (routerId: string) => {
     try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('authToken')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`/api/routers/${routerId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       })
 
       if (response.ok) {
         await fetchRouters()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to delete router')
+        if (response.status === 401) {
+          // Token expired or invalid, redirect to login
+          localStorage.removeItem('user')
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+        } else {
+          alert(error.error || 'Failed to delete router')
+        }
       }
     } catch (error) {
       console.error('Error deleting router:', error)
@@ -136,11 +184,19 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
     setCheckingStatus(prev => ({ ...prev, [routerId]: true }))
     
     try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('authToken')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`/api/routers/${routerId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({ action: 'check_status' })
       })
 
@@ -151,6 +207,11 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
             router.id === routerId ? updatedRouter : router
           )
         )
+      } else if (response.status === 401) {
+        // Token expired or invalid, redirect to login
+        localStorage.removeItem('user')
+        localStorage.removeItem('authToken')
+        window.location.href = '/login'
       }
     } catch (error) {
       console.error('Error checking router status:', error)
@@ -161,11 +222,19 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
 
   const syncPPPoEUsers = async (routerId: string) => {
     try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('authToken')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`/api/routers/${routerId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({ action: 'sync_pppoe' })
       })
 
@@ -173,7 +242,14 @@ export default function RouterList({ ispOwnerId }: RouterListProps) {
         alert('PPPoE users synced successfully')
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to sync PPPoE users')
+        if (response.status === 401) {
+          // Token expired or invalid, redirect to login
+          localStorage.removeItem('user')
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+        } else {
+          alert(error.error || 'Failed to sync PPPoE users')
+        }
       }
     } catch (error) {
       console.error('Error syncing PPPoE users:', error)
