@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
@@ -45,8 +46,12 @@ interface ISPOwner {
 export default function ISPOwnersManagement() {
   const [ispOwners, setIspOwners] = useState<ISPOwner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingOwner, setEditingOwner] = useState<ISPOwner | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -54,6 +59,15 @@ export default function ISPOwnersManagement() {
     companyName: '',
     phone: '',
     address: ''
+  });
+  const [editForm, setEditForm] = useState({
+    email: '',
+    name: '',
+    companyName: '',
+    phone: '',
+    address: '',
+    isActive: true,
+    password: ''
   });
 
   useEffect(() => {
@@ -86,6 +100,8 @@ export default function ISPOwnersManagement() {
 
   const handleCreateISPOwner = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
     
     try {
       const token = localStorage.getItem('authToken');
@@ -101,6 +117,7 @@ export default function ISPOwnersManagement() {
       });
 
       if (response.ok) {
+        setSuccess('ISP owner created successfully!');
         await fetchISPOwners();
         setIsCreateDialogOpen(false);
         setFormData({
@@ -112,12 +129,92 @@ export default function ISPOwnersManagement() {
           address: ''
         });
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to create ISP owner');
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create ISP owner');
       }
     } catch (error) {
       console.error('Error creating ISP owner:', error);
-      alert('Failed to create ISP owner');
+      setError('Failed to create ISP owner');
+    }
+  };
+
+  const handleEditISPOwner = (owner: ISPOwner) => {
+    setEditingOwner(owner);
+    setEditForm({
+      email: owner.email,
+      name: owner.email.split('@')[0], // Extract name from email or use a better approach
+      companyName: owner.companyName,
+      phone: owner.phone,
+      address: owner.address,
+      isActive: owner.status === 'active',
+      password: ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateISPOwner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!editingOwner) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`/api/super-admin/isp-owners/${editingOwner.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess('ISP owner updated successfully!');
+        setIsEditDialogOpen(false);
+        setEditingOwner(null);
+        fetchISPOwners();
+      } else {
+        setError(data.error || 'Failed to update ISP owner');
+      }
+    } catch (error) {
+      console.error('Error updating ISP owner:', error);
+      setError('Failed to update ISP owner');
+    }
+  };
+
+  const handleDeleteISPOwner = async (owner: ISPOwner) => {
+    if (!confirm(`Are you sure you want to delete ${owner.companyName}? This will delete all associated data including customers, routers, plans, and invoices. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`/api/super-admin/isp-owners/${owner.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess('ISP owner and all associated data deleted successfully!');
+        fetchISPOwners();
+      } else {
+        setError(data.error || 'Failed to delete ISP owner');
+      }
+    } catch (error) {
+      console.error('Error deleting ISP owner:', error);
+      setError('Failed to delete ISP owner');
     }
   };
 
@@ -155,6 +252,18 @@ export default function ISPOwnersManagement() {
   return (
     <DashboardLayout title="ISP Owners Management" role="super-admin" user={{}}>
       <div className="space-y-6">
+        {/* Error and Success Alerts */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="bg-green-50 border-green-200">
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -245,6 +354,95 @@ export default function ISPOwnersManagement() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Edit ISP Owner Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit ISP Owner</DialogTitle>
+              <DialogDescription>
+                Update ISP owner information and settings.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateISPOwner} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Admin Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={editForm.password}
+                    onChange={(e) => setEditForm({...editForm, password: e.target.value})}
+                    placeholder="Leave blank to keep current password"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-companyName">Company Name</Label>
+                  <Input
+                    id="edit-companyName"
+                    value={editForm.companyName}
+                    onChange={(e) => setEditForm({...editForm, companyName: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-address">Address</Label>
+                <Textarea
+                  id="edit-address"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-isActive"
+                  checked={editForm.isActive}
+                  onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="edit-isActive">Active</Label>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Update ISP Owner</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -413,10 +611,19 @@ export default function ISPOwnersManagement() {
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditISPOwner(owner)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteISPOwner(owner)}
+                            className="text-red-600 hover:text-red-700"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
