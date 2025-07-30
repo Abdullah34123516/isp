@@ -50,6 +50,8 @@ export function UserManagement({ currentUserRole, currentUserTenantId }: UserMan
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [createForm, setCreateForm] = useState<CreateUserForm>({
     email: '',
     password: '',
@@ -57,6 +59,14 @@ export function UserManagement({ currentUserRole, currentUserTenantId }: UserMan
     role: 'CUSTOMER',
     companyName: '',
     tenantId: ''
+  });
+  const [editForm, setEditForm] = useState({
+    email: '',
+    name: '',
+    role: 'CUSTOMER' as 'SUPER_ADMIN' | 'SUB_ADMIN' | 'ISP_OWNER' | 'CUSTOMER',
+    companyName: '',
+    isActive: true,
+    password: ''
   });
 
   const getAuthToken = () => localStorage.getItem('authToken');
@@ -126,6 +136,83 @@ export function UserManagement({ currentUserRole, currentUserTenantId }: UserMan
       }
     } catch (error) {
       setError('Error creating user');
+    }
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditForm({
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      companyName: user.ispOwner?.companyName || '',
+      isActive: user.isActive,
+      password: ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!editingUser) return;
+
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess('User updated successfully!');
+        setIsEditDialogOpen(false);
+        setEditingUser(null);
+        fetchUsers();
+      } else {
+        setError(data.error || 'Failed to update user');
+      }
+    } catch (error) {
+      setError('Error updating user');
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (!confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess('User deleted successfully!');
+        fetchUsers();
+      } else {
+        setError(data.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      setError('Error deleting user');
     }
   };
 
@@ -322,6 +409,100 @@ export function UserManagement({ currentUserRole, currentUserTenantId }: UserMan
             </Dialog>
           </div>
         </CardHeader>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Update user information and role.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Full Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+                <Input
+                  id="edit-password"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                  placeholder="Leave blank to keep current password"
+                />
+              </div>
+              {currentUserRole === 'SUPER_ADMIN' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Role</Label>
+                  <Select
+                    value={editForm.role}
+                    onValueChange={(value: any) => setEditForm({ ...editForm, role: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableRoles().map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role.replace('_', ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {editForm.role === 'ISP_OWNER' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-companyName">Company Name</Label>
+                  <Input
+                    id="edit-companyName"
+                    value={editForm.companyName}
+                    onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-isActive"
+                  checked={editForm.isActive}
+                  onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="edit-isActive">Active</Label>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Update User</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
         <CardContent>
           <Table>
             <TableHeader>
@@ -377,10 +558,19 @@ export function UserManagement({ currentUserRole, currentUserTenantId }: UserMan
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditUser(user)}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteUser(user)}
+                        className="text-red-600 hover:text-red-700"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
