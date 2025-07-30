@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate, authorize } from '@/lib/middleware';
 import { UserRole } from '@prisma/client';
+import { db } from '@/lib/db';
 
 // POST /api/routers/test - Test router connection
 export async function POST(request: NextRequest) {
@@ -39,7 +40,20 @@ export async function POST(request: NextRequest) {
 
     if (isConnected) {
       // Update router status to ONLINE if connection is successful
-      // This would be done in a real implementation
+      try {
+        const updatedRouter = await db.router.update({
+          where: { id: routerId },
+          data: { 
+            status: 'ONLINE',
+            lastConnected: new Date()
+          }
+        });
+        console.log('Router status updated to ONLINE:', updatedRouter);
+      } catch (updateError) {
+        console.error('Failed to update router status:', updateError);
+        // Continue with success response even if status update fails
+      }
+
       console.log('Connection successful for router:', routerId);
       return NextResponse.json({
         success: true,

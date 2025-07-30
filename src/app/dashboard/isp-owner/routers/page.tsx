@@ -79,10 +79,38 @@ export default function RouterManagement() {
     firmware: ''
   });
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    fetchUserData();
     fetchRouters();
   }, []);
+
+  const fetchUserData = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+      } else {
+        console.error('Error fetching user data');
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
 
   const fetchRouters = async () => {
     try {
@@ -308,7 +336,7 @@ export default function RouterManagement() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Router Management" role="isp-owner" user={{}}>
+      <DashboardLayout title="Router Management" role="isp-owner" user={user || {}}>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
@@ -317,7 +345,7 @@ export default function RouterManagement() {
   }
 
   return (
-    <DashboardLayout title="Router Management" role="isp-owner" user={{}}>
+    <DashboardLayout title="Router Management" role="isp-owner" user={user || {}}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
