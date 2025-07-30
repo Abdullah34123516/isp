@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Loader2, Plus, Edit, Trash2, RefreshCw, Wifi, WifiOff, Settings, Users } from 'lucide-react'
-import { Router, RouterStatus } from '@/lib/db'
+import { Router, RouterStatus } from '@/lib/types'
 
 interface RouterListProps {
   ispOwnerId?: string

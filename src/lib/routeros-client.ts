@@ -1,4 +1,4 @@
-import { Router, RouterStatus, PPPoEUser, PPPoEStatus } from '@/lib/db'
+import { Router, RouterStatus, PPPoEUser, PPPoEStatus } from '@/lib/types'
 
 export interface RouterOSConfig {
   host: string

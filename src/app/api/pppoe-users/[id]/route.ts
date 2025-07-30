@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { UserRole, PPPoEStatus } from '@/lib/db'
+import { UserRole, PPPoEStatus } from '@/lib/types'
 import { createRouterOSClient } from '@/lib/routeros-client'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {

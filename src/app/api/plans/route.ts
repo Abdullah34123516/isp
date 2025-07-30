@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       
       if (!ispOwner) {
         return NextResponse.json(
-          { error: 'ISP owner record not found' },
+          { error: 'ISP owner profile not found. Please contact your administrator to set up your ISP owner profile.' },
           { status: 404 }
         );
       }

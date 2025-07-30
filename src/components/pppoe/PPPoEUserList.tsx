@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Loader2, Plus, Edit, Trash2, User, Wifi, WifiOff, Clock, Activity } from 'lucide-react'
-import { PPPoEUser, PPPoEStatus, Router, Plan, Customer } from '@/lib/db'
+import { PPPoEUser, Router, Plan, Customer, PPPoEStatus } from '@/lib/types'
 
 interface PPPoEUserListProps {
   customerId?: string

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { UserRole, RouterStatus } from '@/lib/db'
+import { UserRole, RouterStatus } from '@/lib/types'
 import { checkRouterOnline } from '@/lib/routeros-client'
 import { authenticate, authorize, AuthenticatedRequest } from '@/lib/middleware'
 
