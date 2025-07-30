@@ -87,7 +87,11 @@ export default function RouterManagement() {
   const fetchRouters = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        console.error('No authentication token found');
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch('/api/routers', {
         headers: {
@@ -98,9 +102,17 @@ export default function RouterManagement() {
       if (response.ok) {
         const data = await response.json();
         setRouters(data);
+      } else {
+        const errorData = await response.json();
+        console.error('Error fetching routers:', errorData.error);
+        // Only show alert for non-401 errors (401 might be normal during logout)
+        if (response.status !== 401) {
+          alert(`Error loading routers: ${errorData.error || 'Unknown error'}`);
+        }
       }
     } catch (error) {
       console.error('Error fetching routers:', error);
+      alert('Network error while loading routers. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -111,7 +123,10 @@ export default function RouterManagement() {
     
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to continue');
+        return;
+      }
 
       const url = editingRouter ? `/api/routers/${editingRouter.id}` : '/api/routers';
       const method = editingRouter ? 'PUT' : 'POST';
@@ -125,13 +140,19 @@ export default function RouterManagement() {
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         await fetchRouters();
         setIsDialogOpen(false);
         resetForm();
+        alert(editingRouter ? 'Router updated successfully!' : 'Router added successfully!');
+      } else {
+        alert(`Error: ${data.error || 'Failed to save router'}`);
       }
     } catch (error) {
       console.error('Error saving router:', error);
+      alert('Network error. Please try again.');
     }
   };
 
@@ -140,7 +161,11 @@ export default function RouterManagement() {
     
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to continue');
+        setTestingConnection(null);
+        return;
+      }
 
       const response = await fetch('/api/routers/test', {
         method: 'POST',
@@ -157,16 +182,21 @@ export default function RouterManagement() {
         })
       });
 
+      const result = await response.json();
+
       if (response.ok) {
-        const result = await response.json();
         if (result.success) {
           await fetchRouters(); // Refresh to update status
+          alert('Connection successful! Router is online.');
+        } else {
+          alert(`Connection failed: ${result.message}`);
         }
-        alert(result.message);
+      } else {
+        alert(`Error: ${result.error || 'Connection test failed'}`);
       }
     } catch (error) {
       console.error('Error testing connection:', error);
-      alert('Connection test failed');
+      alert('Network error during connection test. Please try again.');
     } finally {
       setTestingConnection(null);
     }
@@ -177,7 +207,10 @@ export default function RouterManagement() {
 
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to continue');
+        return;
+      }
 
       const response = await fetch(`/api/routers/${routerId}`, {
         method: 'DELETE',
@@ -186,11 +219,17 @@ export default function RouterManagement() {
         }
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         await fetchRouters();
+        alert('Router deleted successfully!');
+      } else {
+        alert(`Error: ${data.error || 'Failed to delete router'}`);
       }
     } catch (error) {
       console.error('Error deleting router:', error);
+      alert('Network error. Please try again.');
     }
   };
 

@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
+import { authenticate, authorize } from '@/lib/middleware';
+import { UserRole } from '@prisma/client';
 
 // GET /api/routers - Get all routers for the authenticated ISP owner
 export async function GET(request: NextRequest) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
+
+    const authError = authorize([UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
     }
 
     const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
+      where: { userId: authResult.user.userId }
     });
 
     if (!ispOwner) {
@@ -41,13 +47,18 @@ export async function GET(request: NextRequest) {
 // POST /api/routers - Create a new router
 export async function POST(request: NextRequest) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
+
+    const authError = authorize([UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
     }
 
     const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
+      where: { userId: authResult.user.userId }
     });
 
     if (!ispOwner) {
