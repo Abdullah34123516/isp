@@ -1,253 +1,241 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { authenticate, authorize } from '@/lib/middleware';
-import { UserRole } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { UserRole, PPPoEStatus } from '@/lib/db'
+import { createRouterOSClient } from '@/lib/routeros-client'
 
-interface RouteParams {
-  params: { id: string };
-}
-
-// GET /api/pppoe-users/[id] - Get a specific PPPoE user
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authResult = await authenticate(request);
-    
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
-    if (authError) {
-      return authError;
-    }
-
-    // Determine tenant ID
-    let tenantId;
-    
-    if (authResult.user!.role === UserRole.ISP_OWNER) {
-      // For ISP owners, get their ISP owner record
-      // First try to use tenantId from the token if available
-      if (authResult.user!.tenantId) {
-        tenantId = authResult.user!.tenantId;
-      } else {
-        // If not available, look up by userId
-        const ispOwner = await db.ispOwner.findUnique({
-          where: { userId: authResult.user!.userId }
-        });
-        
-        if (!ispOwner) {
-          return NextResponse.json(
-            { error: 'ISP owner record not found' },
-            { status: 404 }
-          );
-        }
-        
-        tenantId = ispOwner.id;
-      }
-    } else {
-      // For super admin and sub admin, get tenantId from query params
-      const { searchParams } = new URL(request.url);
-      tenantId = searchParams.get('tenantId');
-      
-      if (!tenantId) {
-        return NextResponse.json(
-          { error: 'Tenant ID is required for admin users' },
-          { status: 400 }
-        );
-      }
-    }
-
-    const pppoeUser = await db.pPPoEUser.findFirst({
-      where: {
-        id: params.id,
-        customer: {
-          ispOwnerId: tenantId
-        }
-      },
+    const pppoeUser = await db.pPPoEUser.findUnique({
+      where: { id: params.id },
       include: {
-        customer: true,
-        router: true,
+        customer: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true }
+            }
+          }
+        },
+        router: {
+          include: {
+            ispOwner: {
+              include: {
+                user: {
+                  select: { id: true, name: true, email: true }
+                }
+              }
+            }
+          }
+        },
         plan: true
       }
-    });
+    })
 
     if (!pppoeUser) {
-      return NextResponse.json({ error: 'PPPoE user not found' }, { status: 404 });
+      return NextResponse.json({ error: 'PPPoE user not found' }, { status: 404 })
     }
 
-    return NextResponse.json(pppoeUser);
+    // Check permissions
+    if (session.user.role === UserRole.SUPER_ADMIN) {
+      // Super admin can access any PPPoE user
+    } else if (session.user.role === UserRole.ISP_OWNER) {
+      if (pppoeUser.router.ispOwnerId !== session.user.tenantId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (session.user.role === UserRole.CUSTOMER) {
+      const customer = await db.customer.findUnique({
+        where: { userId: session.user.id }
+      })
+
+      if (!customer || pppoeUser.customerId !== customer.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    return NextResponse.json(pppoeUser)
   } catch (error) {
-    console.error('Error fetching PPPoE user:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error fetching PPPoE user:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PUT /api/pppoe-users/[id] - Update a PPPoE user
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authResult = await authenticate(request);
-    
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
-    if (authError) {
-      return authError;
+    if (session.user.role !== UserRole.ISP_OWNER && session.user.role !== UserRole.SUPER_ADMIN) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Determine tenant ID
-    let tenantId;
-    let body;
-    
-    if (authResult.user!.role === UserRole.ISP_OWNER) {
-      // For ISP owners, get their ISP owner record
-      // First try to use tenantId from the token if available
-      if (authResult.user!.tenantId) {
-        tenantId = authResult.user!.tenantId;
-      } else {
-        // If not available, look up by userId
-        const ispOwner = await db.ispOwner.findUnique({
-          where: { userId: authResult.user!.userId }
-        });
-        
-        if (!ispOwner) {
-          return NextResponse.json(
-            { error: 'ISP owner record not found' },
-            { status: 404 }
-          );
-        }
-        
-        tenantId = ispOwner.id;
-      }
-    } else {
-      // For super admin and sub admin, get tenantId from request body
-      body = await request.json();
-      tenantId = body.tenantId;
-      
-      if (!tenantId) {
-        return NextResponse.json(
-          { error: 'Tenant ID is required for admin users' },
-          { status: 400 }
-        );
-      }
-    }
+    const body = await request.json()
+    const { username, password, status, downloadSpeed, uploadSpeed, dataLimit, expiresAt } = body
 
-    // Parse body if not already parsed
-    if (!body) {
-      body = await request.json();
-    }
-    
-    const { status, downloadSpeed, uploadSpeed, dataLimit, expiresAt } = body;
-
-    // Verify the PPPoE user belongs to the ISP owner
-    const existingUser = await db.pPPoEUser.findFirst({
-      where: {
-        id: params.id,
+    const existingUser = await db.pPPoEUser.findUnique({
+      where: { id: params.id },
+      include: {
         customer: {
-          ispOwnerId: tenantId
-        }
+          include: {
+            ispOwner: true
+          }
+        },
+        router: true,
+        plan: true
       }
-    });
+    })
 
     if (!existingUser) {
-      return NextResponse.json({ error: 'PPPoE user not found or not authorized' }, { status: 404 });
+      return NextResponse.json({ error: 'PPPoE user not found' }, { status: 404 })
     }
 
+    // Check permissions
+    if (session.user.role === UserRole.ISP_OWNER && existingUser.router.ispOwnerId !== session.user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Check if new username conflicts with existing user
+    if (username && username !== existingUser.username) {
+      const conflictingUser = await db.pPPoEUser.findUnique({
+        where: { username }
+      })
+
+      if (conflictingUser) {
+        return NextResponse.json({ error: 'PPPoE username already exists' }, { status: 400 })
+      }
+    }
+
+    // Update PPPoE user
     const updatedUser = await db.pPPoEUser.update({
       where: { id: params.id },
       data: {
-        status: status || existingUser.status,
-        downloadSpeed: downloadSpeed || existingUser.downloadSpeed,
-        uploadSpeed: uploadSpeed || existingUser.uploadSpeed,
-        dataLimit: dataLimit || existingUser.dataLimit,
-        expiresAt: expiresAt ? new Date(expiresAt) : existingUser.expiresAt
+        ...(username && { username }),
+        ...(password && { password }),
+        ...(status && { status }),
+        ...(downloadSpeed !== undefined && { downloadSpeed }),
+        ...(uploadSpeed !== undefined && { uploadSpeed }),
+        ...(dataLimit !== undefined && { dataLimit }),
+        ...(expiresAt !== undefined && { expiresAt: expiresAt ? new Date(expiresAt) : null })
       },
       include: {
-        customer: true,
+        customer: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true }
+            }
+          }
+        },
         router: true,
         plan: true
       }
-    });
+    })
 
-    return NextResponse.json(updatedUser);
+    // Sync with RouterOS
+    try {
+      const client = createRouterOSClient(existingUser.router)
+      const connected = await client.connect()
+      
+      if (connected) {
+        await client.updatePPPoESecret(existingUser.username, {
+          name: username || existingUser.username,
+          password: password || existingUser.password,
+          disabled: (status || existingUser.status) !== PPPoEStatus.ACTIVE,
+          'rate-limit': `${downloadSpeed || existingUser.downloadSpeed}/${uploadSpeed || existingUser.uploadSpeed}`,
+          'limit-bytes-in': dataLimit ? parseDataLimit(dataLimit) : undefined,
+          'limit-bytes-out': dataLimit ? parseDataLimit(dataLimit) : undefined,
+          comment: `Customer: ${existingUser.customer.user.name}`
+        })
+        await client.disconnect()
+      }
+    } catch (error) {
+      console.error('Failed to sync PPPoE user update with RouterOS:', error)
+      // Don't fail the request if RouterOS sync fails
+    }
+
+    return NextResponse.json(updatedUser)
   } catch (error) {
-    console.error('Error updating PPPoE user:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error updating PPPoE user:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// DELETE /api/pppoe-users/[id] - Delete a PPPoE user
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authResult = await authenticate(request);
-    
-    if (authResult instanceof NextResponse) {
-      return authResult;
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
-    if (authError) {
-      return authError;
+    if (session.user.role !== UserRole.ISP_OWNER && session.user.role !== UserRole.SUPER_ADMIN) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Determine tenant ID
-    let tenantId;
-    
-    if (authResult.user!.role === UserRole.ISP_OWNER) {
-      // For ISP owners, get their ISP owner record
-      // First try to use tenantId from the token if available
-      if (authResult.user!.tenantId) {
-        tenantId = authResult.user!.tenantId;
-      } else {
-        // If not available, look up by userId
-        const ispOwner = await db.ispOwner.findUnique({
-          where: { userId: authResult.user!.userId }
-        });
-        
-        if (!ispOwner) {
-          return NextResponse.json(
-            { error: 'ISP owner record not found' },
-            { status: 404 }
-          );
-        }
-        
-        tenantId = ispOwner.id;
+    const existingUser = await db.pPPoEUser.findUnique({
+      where: { id: params.id },
+      include: {
+        router: true
       }
-    } else {
-      // For super admin and sub admin, get tenantId from query params
-      const { searchParams } = new URL(request.url);
-      tenantId = searchParams.get('tenantId');
-      
-      if (!tenantId) {
-        return NextResponse.json(
-          { error: 'Tenant ID is required for admin users' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Verify the PPPoE user belongs to the ISP owner
-    const existingUser = await db.pPPoEUser.findFirst({
-      where: {
-        id: params.id,
-        customer: {
-          ispOwnerId: tenantId
-        }
-      }
-    });
+    })
 
     if (!existingUser) {
-      return NextResponse.json({ error: 'PPPoE user not found or not authorized' }, { status: 404 });
+      return NextResponse.json({ error: 'PPPoE user not found' }, { status: 404 })
     }
 
+    // Check permissions
+    if (session.user.role === UserRole.ISP_OWNER && existingUser.router.ispOwnerId !== session.user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Delete from RouterOS first
+    try {
+      const client = createRouterOSClient(existingUser.router)
+      const connected = await client.connect()
+      
+      if (connected) {
+        await client.deletePPPoESecret(existingUser.username)
+        await client.disconnect()
+      }
+    } catch (error) {
+      console.error('Failed to delete PPPoE user from RouterOS:', error)
+      // Don't fail the request if RouterOS deletion fails
+    }
+
+    // Delete from database
     await db.pPPoEUser.delete({
       where: { id: params.id }
-    });
+    })
 
-    return NextResponse.json({ message: 'PPPoE user deleted successfully' });
+    return NextResponse.json({ message: 'PPPoE user deleted successfully' })
   } catch (error) {
-    console.error('Error deleting PPPoE user:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error deleting PPPoE user:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Helper function to parse data limit string to bytes
+function parseDataLimit(dataLimit: string): string {
+  const units = {
+    'B': 1,
+    'KB': 1024,
+    'MB': 1024 * 1024,
+    'GB': 1024 * 1024 * 1024,
+    'TB': 1024 * 1024 * 1024 * 1024
+  }
+
+  const match = dataLimit.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i)
+  if (!match) return '0'
+
+  const value = parseFloat(match[1])
+  const unit = match[2].toUpperCase()
+  
+  return Math.floor(value * units[unit]).toString()
 }

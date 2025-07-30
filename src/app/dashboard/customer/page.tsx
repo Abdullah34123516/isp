@@ -52,6 +52,7 @@ export default function CustomerDashboard() {
   const [currentPlan, setCurrentPlan] = useState<CustomerPlan | null>(null);
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
+  const [pppoeUser, setPppoeUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,6 +63,12 @@ export default function CustomerDashboard() {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) return;
+
+      // Get PPPoE user data from localStorage if available
+      const pppoeUserData = localStorage.getItem('pppoeUser');
+      if (pppoeUserData) {
+        setPppoeUser(JSON.parse(pppoeUserData));
+      }
 
       // Fetch stats
       const statsResponse = await fetch('/api/customer/stats', {
@@ -259,6 +266,64 @@ export default function CustomerDashboard() {
   return (
     <DashboardLayout title="Customer Dashboard" role="customer" user={{}}>
       <div className="space-y-6">
+        {/* PPPoE User Information */}
+        {pppoeUser && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Wifi className="h-5 w-5" />
+                <span>PPPoE Connection</span>
+              </CardTitle>
+              <CardDescription>Your PPPoE connection details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Username</div>
+                  <div className="font-semibold text-lg">{pppoeUser.username}</div>
+                  <Badge className={pppoeUser.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    {pppoeUser.status}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Download Speed</div>
+                  <div className="font-semibold text-lg">{pppoeUser.downloadSpeed || pppoeUser.plan?.speed || 'N/A'}</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Upload Speed</div>
+                  <div className="font-semibold text-lg">{pppoeUser.uploadSpeed || pppoeUser.plan?.speed || 'N/A'}</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Data Limit</div>
+                  <div className="font-semibold text-lg">{pppoeUser.dataLimit || pppoeUser.plan?.dataLimit || 'Unlimited'}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Connected Router</div>
+                  <div className="font-semibold">{pppoeUser.router?.name || 'Unknown'}</div>
+                  <div className="text-sm text-gray-500">{pppoeUser.router?.ipAddress || 'Unknown'}</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600">Service Plan</div>
+                  <div className="font-semibold">{pppoeUser.plan?.name || 'Unknown'}</div>
+                  <div className="text-sm text-gray-500">{pppoeUser.plan?.speed || 'Unknown'}</div>
+                </div>
+              </div>
+              {pppoeUser.expiresAt && (
+                <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm font-medium text-orange-800">
+                      Expires: {new Date(pppoeUser.expiresAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Current Plan Overview */}
         {currentPlan && (
           <Card>

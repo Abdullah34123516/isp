@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, User, Shield } from 'lucide-react';
+import { Building2, Users, User, Shield, Wifi } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -43,6 +43,14 @@ export default function Home() {
       icon: User,
       color: 'bg-purple-500',
       path: '/login/customer'
+    },
+    {
+      id: 'pppoe-customer',
+      title: 'PPPoE Customer',
+      description: 'Login with PPPoE credentials',
+      icon: Wifi,
+      color: 'bg-orange-500',
+      path: '/pppoe-login'
     }
   ];
 
@@ -68,7 +76,7 @@ export default function Home() {
           <p className="text-xl text-gray-600">Multi-tenant SaaS solution for Internet Service Providers</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {roles.map((role) => {
             const Icon = role.icon;
             return (
