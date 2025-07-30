@@ -158,12 +158,12 @@ export default function PPPoEUserManagement() {
 
       if (customersResponse.ok) {
         const customersData = await customersResponse.json();
-        setCustomers(customersData);
+        setCustomers(customersData.customers || []);
       }
 
       if (plansResponse.ok) {
         const plansData = await plansResponse.json();
-        setPlans(plansData);
+        setPlans(plansData.plans || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -347,11 +347,16 @@ export default function PPPoEUserManagement() {
                       <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.map((customer) => (
+                      {Array.isArray(customers) && customers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.name} ({customer.email})
                         </SelectItem>
                       ))}
+                      {(!Array.isArray(customers) || customers.length === 0) && (
+                        <SelectItem value="" disabled>
+                          No customers available
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -362,11 +367,16 @@ export default function PPPoEUserManagement() {
                       <SelectValue placeholder="Select router" />
                     </SelectTrigger>
                     <SelectContent>
-                      {routers.map((router) => (
+                      {Array.isArray(routers) && routers.map((router) => (
                         <SelectItem key={router.id} value={router.id}>
                           {router.name} ({router.ipAddress})
                         </SelectItem>
                       ))}
+                      {(!Array.isArray(routers) || routers.length === 0) && (
+                        <SelectItem value="" disabled>
+                          No routers available
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -377,11 +387,16 @@ export default function PPPoEUserManagement() {
                       <SelectValue placeholder="Select plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {plans.map((plan) => (
+                      {Array.isArray(plans) && plans.map((plan) => (
                         <SelectItem key={plan.id} value={plan.id}>
                           {plan.name} - {plan.speed}
                         </SelectItem>
                       ))}
+                      {(!Array.isArray(plans) || plans.length === 0) && (
+                        <SelectItem value="" disabled>
+                          No plans available
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
