@@ -143,6 +143,444 @@ For a complete list of available environment variables and their descriptions, s
    npm start
    ```
 
+## 📡 API Endpoints
+
+### 🔐 Authentication
+
+#### Login
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@isp.com",
+  "password": "password"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "cmdq6xykz0000z4j59qwhnpp0",
+    "email": "admin@isp.com",
+    "name": "Super Admin",
+    "role": "SUPER_ADMIN",
+    "tenantId": null,
+    "isActive": true
+  }
+}
+```
+
+### 👥 Users Management
+
+#### Get Users (Super/Sub Admin only)
+```http
+GET /api/users?page=1&limit=10&role=ISP_OWNER&search=john
+Authorization: Bearer <token>
+```
+
+#### Get User by ID
+```http
+GET /api/users/[id]
+Authorization: Bearer <token>
+```
+
+#### Update User
+```http
+PUT /api/users/[id]
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "isActive": true
+}
+```
+
+#### Delete User
+```http
+DELETE /api/users/[id]
+Authorization: Bearer <token>
+```
+
+### 📋 Plans Management
+
+#### Get Plans
+```http
+GET /api/plans?page=1&limit=10&tenantId=isp-owner-id&isActive=true
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "plans": [
+    {
+      "id": "plan123",
+      "name": "Basic Plan",
+      "description": "Basic internet plan",
+      "price": 29.99,
+      "speed": "100 Mbps",
+      "dataLimit": "100 GB",
+      "validity": 30,
+      "ispOwnerId": "isp-owner-id",
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "pages": 1
+  }
+}
+```
+
+#### Create Plan
+```http
+POST /api/plans
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Premium Plan",
+  "description": "High-speed internet plan",
+  "price": 59.99,
+  "speed": "500 Mbps",
+  "dataLimit": "500 GB",
+  "validity": 30,
+  "tenantId": "isp-owner-id"
+}
+```
+
+#### Get Plan by ID
+```http
+GET /api/plans/[id]
+Authorization: Bearer <token>
+```
+
+#### Update Plan
+```http
+PUT /api/plans/[id]
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Updated Plan",
+  "price": 69.99,
+  "isActive": false
+}
+```
+
+#### Delete Plan
+```http
+DELETE /api/plans/[id]
+Authorization: Bearer <token>
+```
+
+### 🧾 Invoice Management
+
+#### Get Invoices
+```http
+GET /api/invoices?page=1&limit=10&tenantId=isp-owner-id&status=PENDING
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "invoices": [
+    {
+      "id": "invoice123",
+      "invoiceNo": "INV-2024-001",
+      "customerId": "customer123",
+      "planId": "plan123",
+      "ispOwnerId": "isp-owner-id",
+      "amount": 29.99,
+      "dueDate": "2024-02-01T00:00:00.000Z",
+      "status": "PENDING",
+      "description": "Monthly internet service",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "customer": {
+        "id": "customer123",
+        "name": "John Doe",
+        "email": "john@example.com"
+      },
+      "plan": {
+        "id": "plan123",
+        "name": "Basic Plan"
+      },
+      "payments": []
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "pages": 1
+  }
+}
+```
+
+#### Create Invoice
+```http
+POST /api/invoices
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "customerId": "customer123",
+  "planId": "plan123",
+  "amount": 29.99,
+  "dueDate": "2024-02-01T00:00:00.000Z",
+  "description": "Monthly internet service",
+  "tenantId": "isp-owner-id"
+}
+```
+
+#### Get Invoice by ID
+```http
+GET /api/invoices/[id]
+Authorization: Bearer <token>
+```
+
+#### Update Invoice
+```http
+PUT /api/invoices/[id]
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "status": "PAID",
+  "amount": 29.99
+}
+```
+
+#### Delete Invoice
+```http
+DELETE /api/invoices/[id]
+Authorization: Bearer <token>
+```
+
+### 💳 Payment Management
+
+#### Get Payments
+```http
+GET /api/payments?page=1&limit=10&tenantId=isp-owner-id&status=COMPLETED
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "payments": [
+    {
+      "id": "payment123",
+      "invoiceId": "invoice123",
+      "customerId": "customer123",
+      "amount": 29.99,
+      "status": "COMPLETED",
+      "paymentDate": "2024-01-15T00:00:00.000Z",
+      "transactionId": "txn_123456",
+      "paymentMethod": "CREDIT_CARD",
+      "notes": "Payment received",
+      "createdAt": "2024-01-15T00:00:00.000Z",
+      "invoice": {
+        "id": "invoice123",
+        "invoiceNo": "INV-2024-001"
+      },
+      "customer": {
+        "id": "customer123",
+        "name": "John Doe",
+        "email": "john@example.com"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "pages": 1
+  }
+}
+```
+
+#### Create Payment
+```http
+POST /api/payments
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "invoiceId": "invoice123",
+  "customerId": "customer123",
+  "amount": 29.99,
+  "paymentMethod": "CREDIT_CARD",
+  "transactionId": "txn_123456",
+  "notes": "Payment received"
+}
+```
+
+#### Get Payment by ID
+```http
+GET /api/payments/[id]
+Authorization: Bearer <token>
+```
+
+#### Update Payment
+```http
+PUT /api/payments/[id]
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "status": "REFUNDED",
+  "notes": "Payment refunded due to service issue"
+}
+```
+
+#### Delete Payment
+```http
+DELETE /api/payments/[id]
+Authorization: Bearer <token>
+```
+
+### 👤 Customer Management
+
+#### Get Customers
+```http
+GET /api/customers?page=1&limit=10&tenantId=isp-owner-id&status=ACTIVE
+Authorization: Bearer <token>
+```
+
+#### Create Customer
+```http
+POST /api/customers
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "address": "123 Main St, City, State",
+  "planId": "plan123",
+  "tenantId": "isp-owner-id"
+}
+```
+
+### 🌐 Router Management
+
+#### Get Routers
+```http
+GET /api/routers?page=1&limit=10&tenantId=isp-owner-id
+Authorization: Bearer <token>
+```
+
+#### Create Router
+```http
+POST /api/routers
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Main Router",
+  "ipAddress": "192.168.1.1",
+  "port": 8728,
+  "username": "admin",
+  "password": "password",
+  "location": "Data Center",
+  "model": "MikroTik hEX",
+  "tenantId": "isp-owner-id"
+}
+```
+
+### 👥 PPPoE Users
+
+#### Get PPPoE Users
+```http
+GET /api/pppoe-users?page=1&limit=10&tenantId=isp-owner-id
+Authorization: Bearer <token>
+```
+
+#### Create PPPoE User
+```http
+POST /api/pppoe-users
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "password": "password123",
+  "customerId": "customer123",
+  "routerId": "router123",
+  "planId": "plan123",
+  "tenantId": "isp-owner-id"
+}
+```
+
+### 📊 Statistics & Analytics
+
+#### Super Admin Stats
+```http
+GET /api/super-admin/stats
+Authorization: Bearer <token>
+```
+
+#### Sub Admin Stats
+```http
+GET /api/sub-admin/stats
+Authorization: Bearer <token>
+```
+
+#### ISP Owner Stats
+```http
+GET /api/isp-owner/stats
+Authorization: Bearer <token>
+```
+
+#### Customer Stats
+```http
+GET /api/customer/stats
+Authorization: Bearer <token>
+```
+
+### 🔍 Health Check
+```http
+GET /api/health
+```
+
+**Response:**
+```json
+{
+  "message": "Good!"
+}
+```
+
+## 🔐 Authentication & Authorization
+
+All API endpoints (except `/api/auth/login` and `/api/health`) require JWT authentication. Include the token in the Authorization header:
+
+```http
+Authorization: Bearer <your-jwt-token>
+```
+
+### Role-Based Access Control
+
+- **SUPER_ADMIN**: Access to all endpoints, can manage all tenants
+- **SUB_ADMIN**: Access to most endpoints, can manage ISP owners
+- **ISP_OWNER**: Access to own tenant data only (plans, customers, invoices, payments)
+- **CUSTOMER**: Limited access to own data only
+
+### Tenant Isolation
+
+ISP owners can only access their own data. The system automatically filters data based on the `tenantId` parameter or the user's associated tenant.
+
 ## 📁 Project Structure
 
 ```
