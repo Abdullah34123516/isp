@@ -309,7 +309,13 @@ export default function RouterManagement() {
                     id="port"
                     type="number"
                     value={formData.port}
-                    onChange={(e) => setFormData({...formData, port: parseInt(e.target.value)})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const portValue = value === '' ? 8728 : parseInt(value) || 8728;
+                      setFormData({...formData, port: portValue});
+                    }}
+                    min="1"
+                    max="65535"
                     required
                   />
                 </div>
@@ -346,6 +352,14 @@ export default function RouterManagement() {
                     id="model"
                     value={formData.model}
                     onChange={(e) => setFormData({...formData, model: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="firmware">Firmware (Optional)</Label>
+                  <Input
+                    id="firmware"
+                    value={formData.firmware}
+                    onChange={(e) => setFormData({...formData, firmware: e.target.value})}
                   />
                 </div>
                 <div className="flex space-x-2 pt-4">
