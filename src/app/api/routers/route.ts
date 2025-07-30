@@ -102,20 +102,32 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Router POST API called');
+    
     const authResult = await authenticate(request)
     if (authResult instanceof NextResponse) {
+      console.log('Authentication failed, returning error response');
       return authResult
     }
 
     const authRequest = authResult as AuthenticatedRequest
     const user = authRequest.user!
+    
+    console.log('User authenticated:', {
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId
+    });
 
     const authCheck = authorize([UserRole.ISP_OWNER, UserRole.SUPER_ADMIN])(authRequest)
     if (authCheck) {
+      console.log('Authorization failed');
       return authCheck
     }
 
     const body = await request.json()
+    console.log('Request body:', body);
     const { name, ipAddress, port, username, password, location, model, firmware } = body
 
     // Validate required fields
@@ -135,22 +147,30 @@ export async function POST(request: NextRequest) {
     // Determine ISP owner ID
     let ispOwnerId: string
     if (user.role === UserRole.ISP_OWNER) {
+      console.log('Processing ISP owner, looking up IspOwner record for userId:', user.userId);
+      
       // For ISP owners, get their IspOwner record
       const ispOwner = await db.ispOwner.findUnique({
         where: { userId: user.userId }
       })
       
+      console.log('ISP owner lookup result:', ispOwner);
+      
       if (!ispOwner) {
+        console.log('ISP owner profile not found for userId:', user.userId);
         return NextResponse.json({ error: 'ISP owner profile not found' }, { status: 404 })
       }
       
       ispOwnerId = ispOwner.id
+      console.log('Using ISP owner ID:', ispOwnerId);
     } else {
       // For super admins, use the provided ispOwnerId
       ispOwnerId = body.ispOwnerId
+      console.log('Super admin using provided ISP owner ID:', ispOwnerId);
     }
 
     if (!ispOwnerId) {
+      console.log('No ISP owner ID available');
       return NextResponse.json({ error: 'ISP owner ID is required' }, { status: 400 })
     }
 
