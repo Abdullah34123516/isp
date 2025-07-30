@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Router POST API called');
+    console.log('=== ROUTER POST API START ===');
     
     const authResult = await authenticate(request)
     if (authResult instanceof NextResponse) {
@@ -127,20 +127,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    console.log('Request body:', body);
+    console.log('Request body received:', body);
     const { name, ipAddress, port, username, password, location, model, firmware } = body
 
     // Validate required fields
     if (!name || !ipAddress || !port || !username || !password) {
+      console.log('Missing required fields:', { name, ipAddress, port, username, password: !!password });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     // Check if router IP already exists
+    console.log('Checking for existing router with IP:', ipAddress);
     const existingRouter = await db.router.findUnique({
       where: { ipAddress }
     })
 
     if (existingRouter) {
+      console.log('Router with IP already exists:', ipAddress);
       return NextResponse.json({ error: 'Router with this IP address already exists' }, { status: 400 })
     }
 
@@ -158,7 +161,20 @@ export async function POST(request: NextRequest) {
       
       if (!ispOwner) {
         console.log('ISP owner profile not found for userId:', user.userId);
-        return NextResponse.json({ error: 'ISP owner profile not found' }, { status: 404 })
+        console.log('Available users in database:');
+        const allUsers = await db.user.findMany({ select: { id: true, email: true, role: true } });
+        console.log(allUsers);
+        
+        console.log('Available ISP owners in database:');
+        const allIspOwners = await db.ispOwner.findMany({ include: { user: true } });
+        console.log(allIspOwners);
+        
+        return NextResponse.json({ 
+          error: 'ISP owner profile not found',
+          details: `No ISP owner profile found for user ID: ${user.userId}. Please contact your administrator.`,
+          userId: user.userId,
+          userEmail: user.email
+        }, { status: 404 })
       }
       
       ispOwnerId = ispOwner.id
@@ -175,7 +191,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if router is online before adding
-    console.log('Checking router online status for:', { ipAddress, port, username })
+    console.log('Checking router online status for:', { ipAddress, port, username });
     const tempRouter = {
       id: 'temp',
       name,
@@ -214,7 +230,7 @@ export async function POST(request: NextRequest) {
       location,
       model,
       firmware
-    })
+    });
 
     try {
       const router = await db.router.create({
@@ -241,21 +257,32 @@ export async function POST(request: NextRequest) {
           }
         }
       })
-      console.log('Router created successfully:', router.id)
+      console.log('Router created successfully:', router.id);
 
       return NextResponse.json({
         ...router,
         actualStatus: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE
       })
     } catch (dbError) {
-      console.error('Database error creating router:', dbError)
+      console.error('Database error creating router:', dbError);
+      console.error('Error details:', {
+        message: dbError instanceof Error ? dbError.message : 'Unknown error',
+        stack: dbError instanceof Error ? dbError.stack : undefined,
+        code: (dbError as any).code
+      });
       return NextResponse.json({ 
         error: 'Failed to create router in database',
         details: dbError instanceof Error ? dbError.message : 'Unknown database error'
       }, { status: 500 })
     }
   } catch (error) {
-    console.error('Error creating router:', error)
+    console.error('Unexpected error creating router:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } finally {
+    console.log('=== ROUTER POST API END ===');
   }
 }
