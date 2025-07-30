@@ -228,11 +228,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const existingIspOwner = await db.user.findUnique({
       where: { id, role: 'ISP_OWNER' },
       include: {
-        ispOwner: true,
-        customers: true,
-        routers: true,
-        plans: true,
-        invoices: true
+        ispOwner: {
+          include: {
+            customers: true,
+            routers: true,
+            plans: true,
+            invoices: true
+          }
+        }
       }
     });
 
@@ -254,43 +257,60 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Delete all related data in a transaction
     await db.$transaction(async (prisma) => {
       // Delete PPPoE users for all customers of this ISP owner
-      const customerIds = existingIspOwner.customers.map(c => c.id);
-      await prisma.pPPoEUser.deleteMany({
-        where: { customerId: { in: customerIds } }
-      });
+      const customerIds = existingIspOwner.ispOwner.customers.map(c => c.id);
+      console.log(`Deleting PPPoE users for customers: ${customerIds.length} customers`);
+      if (customerIds.length > 0) {
+        await prisma.pPPoEUser.deleteMany({
+          where: { customerId: { in: customerIds } }
+        });
+      }
 
       // Delete payments for invoices of this ISP owner
-      const invoiceIds = existingIspOwner.invoices.map(i => i.id);
-      await prisma.payment.deleteMany({
-        where: { invoiceId: { in: invoiceIds } }
-      });
+      const invoiceIds = existingIspOwner.ispOwner.invoices.map(i => i.id);
+      console.log(`Deleting payments for invoices: ${invoiceIds.length} invoices`);
+      if (invoiceIds.length > 0) {
+        await prisma.payment.deleteMany({
+          where: { invoiceId: { in: invoiceIds } }
+        });
+      }
 
-      // Delete invoices
+      // Delete invoices associated with this ISP owner
+      console.log(`Deleting invoices for ISP owner: ${existingIspOwner.ispOwner.id}`);
       await prisma.invoice.deleteMany({
-        where: { ispOwnerId: existingIspOwner.ispOwner.id }
+        where: {
+          OR: [
+            { ispOwnerId: existingIspOwner.ispOwner.id },
+            { customerId: { in: customerIds } }
+          ]
+        }
       });
 
       // Delete customers
+      console.log(`Deleting customers for ISP owner: ${existingIspOwner.ispOwner.id}`);
       await prisma.customer.deleteMany({
         where: { ispOwnerId: existingIspOwner.ispOwner.id }
       });
 
       // Delete routers
+      console.log(`Deleting routers for ISP owner: ${existingIspOwner.ispOwner.id}`);
       await prisma.router.deleteMany({
         where: { ispOwnerId: existingIspOwner.ispOwner.id }
       });
 
       // Delete plans
+      console.log(`Deleting plans for ISP owner: ${existingIspOwner.ispOwner.id}`);
       await prisma.plan.deleteMany({
         where: { ispOwnerId: existingIspOwner.ispOwner.id }
       });
 
       // Delete ISP owner record
+      console.log(`Deleting ISP owner record for user: ${id}`);
       await prisma.ispOwner.delete({
         where: { userId: id }
       });
 
       // Delete user
+      console.log(`Deleting user: ${id}`);
       await prisma.user.delete({
         where: { id }
       });
@@ -302,8 +322,22 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   } catch (error) {
     console.error('Error deleting ISP owner:', error);
+    
+    // Provide more detailed error information
+    let errorMessage = 'Internal server error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check for specific Prisma errors
+      if (errorMessage.includes('Foreign key constraint failed')) {
+        errorMessage = 'Cannot delete ISP owner due to existing references. Please ensure all related data is properly cleaned up.';
+      } else if (errorMessage.includes('Record to delete does not exist')) {
+        errorMessage = 'ISP owner not found or already deleted.';
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

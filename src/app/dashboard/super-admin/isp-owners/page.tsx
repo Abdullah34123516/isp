@@ -211,10 +211,11 @@ export default function ISPOwnersManagement() {
         fetchISPOwners();
       } else {
         setError(data.error || 'Failed to delete ISP owner');
+        console.error('Delete error details:', data);
       }
     } catch (error) {
       console.error('Error deleting ISP owner:', error);
-      setError('Failed to delete ISP owner');
+      setError('Failed to delete ISP owner. Please check the console for details.');
     }
   };
 
