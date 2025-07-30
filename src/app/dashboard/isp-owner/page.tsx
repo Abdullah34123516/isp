@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  Users, 
   FileText, 
   CreditCard, 
   TrendingUp, 
@@ -19,13 +18,10 @@ import {
   Edit,
   Wifi,
   Calendar,
-  Router as RouterIcon,
-  User as UserIcon
+  Router as RouterIcon
 } from 'lucide-react';
 
 interface ISPOwnerStats {
-  totalCustomers: number;
-  activeCustomers: number;
   totalPlans: number;
   totalInvoices: number;
   totalPayments: number;
@@ -53,8 +49,6 @@ interface RecentPayment {
 
 export default function ISPOwnerDashboard() {
   const [stats, setStats] = useState<ISPOwnerStats>({
-    totalCustomers: 0,
-    activeCustomers: 0,
     totalPlans: 0,
     totalInvoices: 0,
     totalPayments: 0,
@@ -107,8 +101,6 @@ export default function ISPOwnerDashboard() {
       } else {
         // Fallback to mock data if API fails
         const mockStats: ISPOwnerStats = {
-          totalCustomers: 156,
-          activeCustomers: 142,
           totalPlans: 8,
           totalInvoices: 486,
           totalPayments: 412,
@@ -161,8 +153,6 @@ export default function ISPOwnerDashboard() {
       console.error('Error fetching dashboard data:', error);
       // Fallback to mock data
       const mockStats: ISPOwnerStats = {
-        totalCustomers: 156,
-        activeCustomers: 142,
         totalPlans: 8,
         totalInvoices: 486,
         totalPayments: 412,
@@ -202,16 +192,6 @@ export default function ISPOwnerDashboard() {
 
   const statCards = [
     {
-      title: 'Total Customers',
-      value: stats.totalCustomers.toLocaleString(),
-      description: `${stats.activeCustomers} active`,
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      change: '+8%',
-      changeType: 'positive'
-    },
-    {
       title: 'Monthly Revenue',
       value: `$${(stats.totalRevenue / 1000).toFixed(1)}K`,
       description: 'This month',
@@ -240,6 +220,16 @@ export default function ISPOwnerDashboard() {
       bgColor: 'bg-purple-50',
       change: '0%',
       changeType: 'neutral'
+    },
+    {
+      title: 'Payment Success',
+      value: `${Math.round((stats.totalPayments / stats.totalInvoices) * 100)}%`,
+      description: 'Success rate',
+      icon: CheckCircle,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      change: '+5%',
+      changeType: 'positive'
     }
   ];
 
@@ -409,15 +399,7 @@ export default function ISPOwnerDashboard() {
             <CardDescription>Common tasks for ISP Owners</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Button 
-                variant="outline" 
-                className="h-20 flex-col"
-                onClick={() => window.location.href = '/dashboard/isp-owner/users'}
-              >
-                <UserIcon className="h-6 w-6 mb-2" />
-                <span>Add Customer</span>
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Button 
                 variant="outline" 
                 className="h-20 flex-col"
@@ -438,34 +420,6 @@ export default function ISPOwnerDashboard() {
                 <FileText className="h-6 w-6 mb-2" />
                 <span>Create Invoice</span>
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Customers */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Customers</CardTitle>
-            <CardDescription>Customers with highest revenue</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { name: 'John Smith', revenue: 1200, invoices: 15 },
-                { name: 'Sarah Johnson', revenue: 980, invoices: 12 },
-                { name: 'Mike Wilson', revenue: 850, invoices: 10 }
-              ].map((customer, index) => (
-                <div key={index} className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-medium">{customer.name}</div>
-                    <Badge variant="outline">#{index + 1}</Badge>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    <div>Revenue: ${customer.revenue}</div>
-                    <div>Invoices: {customer.invoices}</div>
-                  </div>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
