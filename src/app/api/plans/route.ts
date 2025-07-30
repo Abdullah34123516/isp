@@ -118,7 +118,19 @@ export async function POST(request: NextRequest) {
     let finalTenantId = tenantId;
     
     if (authResult.user!.role === UserRole.ISP_OWNER) {
-      finalTenantId = authResult.user!.tenantId;
+      // For ISP owners, get their ISP owner record
+      const ispOwner = await db.ispOwner.findUnique({
+        where: { userId: authResult.user!.userId }
+      });
+      
+      if (!ispOwner) {
+        return NextResponse.json(
+          { error: 'ISP owner record not found' },
+          { status: 404 }
+        );
+      }
+      
+      finalTenantId = ispOwner.id;
     } else if (!finalTenantId) {
       return NextResponse.json(
         { error: 'Tenant ID is required' },

@@ -100,7 +100,10 @@ export default function PlansManagement() {
     
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to continue');
+        return;
+      }
 
       const url = editingPlan ? `/api/plans/${editingPlan.id}` : '/api/plans';
       const method = editingPlan ? 'PUT' : 'POST';
@@ -114,16 +117,22 @@ export default function PlansManagement() {
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
         // For POST, the response is { message: ..., plan: {...} }
         // For PUT, the response is { message: ..., plan: {...} }
         await fetchPlans();
         setIsDialogOpen(false);
         resetForm();
+        alert(editingPlan ? 'Plan updated successfully!' : 'Plan created successfully!');
+      } else {
+        alert(`Error: ${data.error || 'Failed to save plan'}`);
+        console.error('Plan save error:', data);
       }
     } catch (error) {
       console.error('Error saving plan:', error);
+      alert('Network error. Please try again.');
     }
   };
 

@@ -101,9 +101,10 @@ export default function RouterManagement() {
       });
 
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        const data = await response.json();
+        // The API returns { user: {...} }
+        setUser(data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
       } else {
         console.error('Error fetching user data');
       }

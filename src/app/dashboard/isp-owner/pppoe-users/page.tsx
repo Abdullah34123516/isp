@@ -177,7 +177,10 @@ export default function PPPoEUserManagement() {
     
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to continue');
+        return;
+      }
 
       const response = await fetch('/api/pppoe-users', {
         method: 'POST',
@@ -188,13 +191,20 @@ export default function PPPoEUserManagement() {
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         await fetchData();
         setIsDialogOpen(false);
         resetForm();
+        alert('PPPoE user created successfully!');
+      } else {
+        alert(`Error: ${data.error || 'Failed to create PPPoE user'}`);
+        console.error('PPPoE user creation error:', data);
       }
     } catch (error) {
       console.error('Error saving PPPoE user:', error);
+      alert('Network error. Please try again.');
     }
   };
 
