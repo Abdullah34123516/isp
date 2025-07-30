@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 export const PPPoEStatus = Prisma.PPPoEStatus
 export const UserRole = Prisma.UserRole
 export const PlanType = Prisma.PlanType
+export const RouterStatus = Prisma.RouterStatus
 
 // Type exports
 export type { PPPoEUser, Router, Plan, Customer, User, ISPOwner } from '@prisma/client'
