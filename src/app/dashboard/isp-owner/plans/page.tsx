@@ -275,7 +275,11 @@ export default function PlansManagement() {
                     type="number"
                     step="0.01"
                     value={formData.price}
-                    onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const parsedValue = parseFloat(value);
+                      setFormData({...formData, price: isNaN(parsedValue) ? 0 : parsedValue});
+                    }}
                     required
                   />
                 </div>
@@ -304,7 +308,11 @@ export default function PlansManagement() {
                     id="validity"
                     type="number"
                     value={formData.validity}
-                    onChange={(e) => setFormData({...formData, validity: parseInt(e.target.value)})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const parsedValue = parseInt(value);
+                      setFormData({...formData, validity: isNaN(parsedValue) ? 30 : parsedValue});
+                    }}
                     required
                   />
                 </div>
