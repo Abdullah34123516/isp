@@ -133,13 +133,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine ISP owner ID
-    const ispOwnerId = user.role === UserRole.ISP_OWNER ? user.tenantId : body.ispOwnerId
+    let ispOwnerId: string
+    if (user.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their IspOwner record
+      const ispOwner = await db.ispOwner.findUnique({
+        where: { userId: user.userId }
+      })
+      
+      if (!ispOwner) {
+        return NextResponse.json({ error: 'ISP owner profile not found' }, { status: 404 })
+      }
+      
+      ispOwnerId = ispOwner.id
+    } else {
+      // For super admins, use the provided ispOwnerId
+      ispOwnerId = body.ispOwnerId
+    }
 
     if (!ispOwnerId) {
       return NextResponse.json({ error: 'ISP owner ID is required' }, { status: 400 })
     }
 
     // Check if router is online before adding
+    console.log('Checking router online status for:', { ipAddress, port, username })
     const tempRouter = {
       id: 'temp',
       name,
@@ -157,38 +173,67 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     }
 
-    const isOnline = await checkRouterOnline(tempRouter as any)
+    let isOnline = false
+    try {
+      isOnline = await checkRouterOnline(tempRouter as any)
+      console.log('Router online check result:', isOnline)
+    } catch (checkError) {
+      console.error('Error checking router online status:', checkError)
+      // Continue with offline status if check fails
+      isOnline = false
+    }
 
     // Create router in database
-    const router = await db.router.create({
-      data: {
-        name,
-        ipAddress,
-        port,
-        username,
-        password,
-        status: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE,
-        ispOwnerId,
-        location,
-        model,
-        firmware,
-        lastConnected: isOnline ? new Date() : null
-      },
-      include: {
-        ispOwner: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true }
+    console.log('Creating router in database with data:', {
+      name,
+      ipAddress,
+      port,
+      username,
+      status: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE,
+      ispOwnerId,
+      location,
+      model,
+      firmware
+    })
+
+    try {
+      const router = await db.router.create({
+        data: {
+          name,
+          ipAddress,
+          port,
+          username,
+          password,
+          status: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE,
+          ispOwnerId,
+          location,
+          model,
+          firmware,
+          lastConnected: isOnline ? new Date() : null
+        },
+        include: {
+          ispOwner: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true }
+              }
             }
           }
         }
-      }
-    })
+      })
+      console.log('Router created successfully:', router.id)
 
-    return NextResponse.json({
-      ...router,
-      actualStatus: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE
-    })
+      return NextResponse.json({
+        ...router,
+        actualStatus: isOnline ? RouterStatus.ONLINE : RouterStatus.OFFLINE
+      })
+    } catch (dbError) {
+      console.error('Database error creating router:', dbError)
+      return NextResponse.json({ 
+        error: 'Failed to create router in database',
+        details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      }, { status: 500 })
+    }
   } catch (error) {
     console.error('Error creating router:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
