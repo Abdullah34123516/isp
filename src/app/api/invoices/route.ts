@@ -31,7 +31,25 @@ export async function GET(request: NextRequest) {
       where.ispOwnerId = tenantId;
     } else if (authResult.user!.role === UserRole.ISP_OWNER) {
       // ISP owners can only see their own invoices
-      where.ispOwnerId = authResult.user!.tenantId;
+      let ispOwnerId = authResult.user!.tenantId;
+      
+      // If tenantId is not available, look up the ISP owner record
+      if (!ispOwnerId) {
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        ispOwnerId = ispOwner.id;
+      }
+      
+      where.ispOwnerId = ispOwnerId;
     } else if (authResult.user!.role === UserRole.CUSTOMER) {
       // Customers can only see their own invoices
       const customer = await db.customer.findUnique({

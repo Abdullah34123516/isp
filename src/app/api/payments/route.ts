@@ -44,7 +44,24 @@ export async function GET(request: NextRequest) {
       ];
     } else if (authResult.user!.role === UserRole.ISP_OWNER) {
       // ISP owners can only see their own payments
-      const ownerTenantId = authResult.user!.tenantId;
+      let ownerTenantId = authResult.user!.tenantId;
+      
+      // If tenantId is not available, look up the ISP owner record
+      if (!ownerTenantId) {
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        ownerTenantId = ispOwner.id;
+      }
+      
       where.OR = [
         {
           customer: {

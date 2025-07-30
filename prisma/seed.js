@@ -96,13 +96,33 @@ async function main() {
       },
     });
 
+    // Update the user record to set the tenantId
+    await prisma.user.update({
+      where: { id: ispOwnerUser.id },
+      data: { tenantId: ispOwner.id },
+    });
+
     console.log('✅ Default ISP owner created:');
     console.log(`   Email: ${ispOwnerEmail}`);
     console.log(`   Password: ${ispOwnerPassword}`);
     console.log(`   Role: ISP_OWNER`);
     console.log(`   Company: Default ISP Company`);
+    console.log(`   Tenant ID: ${ispOwner.id}`);
   } else {
     console.log('ℹ️  ISP owner already exists');
+    
+    // Check if the existing ISP owner user has the tenantId set
+    const existingIspOwner = await prisma.ispOwner.findFirst({
+      where: { userId: existingIspOwnerUser.id }
+    });
+    
+    if (existingIspOwner && !existingIspOwnerUser.tenantId) {
+      await prisma.user.update({
+        where: { id: existingIspOwnerUser.id },
+        data: { tenantId: existingIspOwner.id },
+      });
+      console.log('✅ Updated existing ISP owner user with tenantId');
+    }
   }
 
   // Create default customer user and related customer record

@@ -32,7 +32,25 @@ export async function GET(request: NextRequest) {
       where.ispOwnerId = tenantId;
     } else if (authResult.user!.role === UserRole.ISP_OWNER) {
       // ISP owners can only see their own customers
-      where.ispOwnerId = authResult.user!.tenantId;
+      let ispOwnerId = authResult.user!.tenantId;
+      
+      // If tenantId is not available, look up the ISP owner record
+      if (!ispOwnerId) {
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        ispOwnerId = ispOwner.id;
+      }
+      
+      where.ispOwnerId = ispOwnerId;
     } else if (authResult.user!.role === UserRole.CUSTOMER) {
       // Customers can only see their own record
       where.userId = authResult.user!.userId;
@@ -130,7 +148,25 @@ export async function POST(request: NextRequest) {
     let finalTenantId = tenantId;
     
     if (authResult.user!.role === UserRole.ISP_OWNER) {
-      finalTenantId = authResult.user!.tenantId;
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        finalTenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        finalTenantId = ispOwner.id;
+      }
     } else if (!finalTenantId) {
       return NextResponse.json(
         { error: 'Tenant ID is required' },
