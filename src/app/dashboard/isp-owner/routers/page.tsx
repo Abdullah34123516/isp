@@ -182,7 +182,25 @@ export default function RouterManagement() {
         })
       });
 
-      const result = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      // Check if response is empty
+      const text = await response.text();
+      console.log('Response text:', text);
+
+      if (!text) {
+        throw new Error('Empty response from server');
+      }
+
+      // Parse JSON only if there's content
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Invalid response format from server');
+      }
 
       if (response.ok) {
         if (result.success) {
@@ -192,11 +210,11 @@ export default function RouterManagement() {
           alert(`Connection failed: ${result.message}`);
         }
       } else {
-        alert(`Error: ${result.error || 'Connection test failed'}`);
+        alert(`Error: ${result.error || result.message || 'Connection test failed'}`);
       }
     } catch (error) {
       console.error('Error testing connection:', error);
-      alert('Network error during connection test. Please try again.');
+      alert(`Network error during connection test: ${error.message || 'Please try again.'}`);
     } finally {
       setTestingConnection(null);
     }
