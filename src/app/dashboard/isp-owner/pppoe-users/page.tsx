@@ -352,11 +352,6 @@ export default function PPPoEUserManagement() {
                           {customer.name} ({customer.email})
                         </SelectItem>
                       ))}
-                      {(!Array.isArray(customers) || customers.length === 0) && (
-                        <SelectItem value="" disabled>
-                          No customers available
-                        </SelectItem>
-                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -372,11 +367,6 @@ export default function PPPoEUserManagement() {
                           {router.name} ({router.ipAddress})
                         </SelectItem>
                       ))}
-                      {(!Array.isArray(routers) || routers.length === 0) && (
-                        <SelectItem value="" disabled>
-                          No routers available
-                        </SelectItem>
-                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -392,11 +382,6 @@ export default function PPPoEUserManagement() {
                           {plan.name} - {plan.speed}
                         </SelectItem>
                       ))}
-                      {(!Array.isArray(plans) || plans.length === 0) && (
-                        <SelectItem value="" disabled>
-                          No plans available
-                        </SelectItem>
-                      )}
                     </SelectContent>
                   </Select>
                 </div>
