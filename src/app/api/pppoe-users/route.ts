@@ -1,27 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
+import { authenticate, authorize } from '@/lib/middleware';
+import { UserRole } from '@prisma/client';
 
 // GET /api/pppoe-users - Get all PPPoE users for the authenticated ISP owner
 export async function GET(request: NextRequest) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    
+    if (authResult instanceof NextResponse) {
+      return authResult;
     }
 
-    const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
-    });
+    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
+    }
 
-    if (!ispOwner) {
-      return NextResponse.json({ error: 'ISP owner not found' }, { status: 404 });
+    // Determine tenant ID
+    let tenantId;
+    
+    if (authResult.user!.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        tenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        tenantId = ispOwner.id;
+      }
+    } else {
+      // For super admin and sub admin, get tenantId from query params
+      const { searchParams } = new URL(request.url);
+      tenantId = searchParams.get('tenantId');
+      
+      if (!tenantId) {
+        return NextResponse.json(
+          { error: 'Tenant ID is required for admin users' },
+          { status: 400 }
+        );
+      }
     }
 
     const pppoeUsers = await db.pPPoEUser.findMany({
       where: {
         customer: {
-          ispOwnerId: ispOwner.id
+          ispOwnerId: tenantId
         }
       },
       include: {
@@ -42,20 +77,59 @@ export async function GET(request: NextRequest) {
 // POST /api/pppoe-users - Create a new PPPoE user
 export async function POST(request: NextRequest) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    
+    if (authResult instanceof NextResponse) {
+      return authResult;
     }
 
-    const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
-    });
-
-    if (!ispOwner) {
-      return NextResponse.json({ error: 'ISP owner not found' }, { status: 404 });
+    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
     }
 
-    const body = await request.json();
+    // Determine tenant ID
+    let tenantId;
+    let body;
+    
+    if (authResult.user!.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        tenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        tenantId = ispOwner.id;
+      }
+    } else {
+      // For super admin and sub admin, get tenantId from request body
+      body = await request.json();
+      tenantId = body.tenantId;
+      
+      if (!tenantId) {
+        return NextResponse.json(
+          { error: 'Tenant ID is required for admin users' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Parse body if not already parsed
+    if (!body) {
+      body = await request.json();
+    }
+    
     const { username, password, customerId, routerId, planId, downloadSpeed, uploadSpeed, dataLimit, expiresAt } = body;
 
     if (!username || !password || !customerId || !routerId || !planId) {
@@ -66,7 +140,7 @@ export async function POST(request: NextRequest) {
     const customer = await db.customer.findFirst({
       where: {
         id: customerId,
-        ispOwnerId: ispOwner.id
+        ispOwnerId: tenantId
       }
     });
 
@@ -78,7 +152,7 @@ export async function POST(request: NextRequest) {
     const router = await db.router.findFirst({
       where: {
         id: routerId,
-        ispOwnerId: ispOwner.id
+        ispOwnerId: tenantId
       }
     });
 
@@ -90,7 +164,7 @@ export async function POST(request: NextRequest) {
     const plan = await db.plan.findFirst({
       where: {
         id: planId,
-        ispOwnerId: ispOwner.id
+        ispOwnerId: tenantId
       }
     });
 

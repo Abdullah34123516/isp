@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
+import { authenticate, authorize } from '@/lib/middleware';
+import { UserRole } from '@prisma/client';
 
 interface RouteParams {
   params: { id: string };
@@ -9,24 +10,58 @@ interface RouteParams {
 // GET /api/pppoe-users/[id] - Get a specific PPPoE user
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    
+    if (authResult instanceof NextResponse) {
+      return authResult;
     }
 
-    const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
-    });
+    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
+    }
 
-    if (!ispOwner) {
-      return NextResponse.json({ error: 'ISP owner not found' }, { status: 404 });
+    // Determine tenant ID
+    let tenantId;
+    
+    if (authResult.user!.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        tenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        tenantId = ispOwner.id;
+      }
+    } else {
+      // For super admin and sub admin, get tenantId from query params
+      const { searchParams } = new URL(request.url);
+      tenantId = searchParams.get('tenantId');
+      
+      if (!tenantId) {
+        return NextResponse.json(
+          { error: 'Tenant ID is required for admin users' },
+          { status: 400 }
+        );
+      }
     }
 
     const pppoeUser = await db.pPPoEUser.findFirst({
       where: {
         id: params.id,
         customer: {
-          ispOwnerId: ispOwner.id
+          ispOwnerId: tenantId
         }
       },
       include: {
@@ -50,20 +85,59 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/pppoe-users/[id] - Update a PPPoE user
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    
+    if (authResult instanceof NextResponse) {
+      return authResult;
     }
 
-    const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
-    });
-
-    if (!ispOwner) {
-      return NextResponse.json({ error: 'ISP owner not found' }, { status: 404 });
+    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
     }
 
-    const body = await request.json();
+    // Determine tenant ID
+    let tenantId;
+    let body;
+    
+    if (authResult.user!.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        tenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        tenantId = ispOwner.id;
+      }
+    } else {
+      // For super admin and sub admin, get tenantId from request body
+      body = await request.json();
+      tenantId = body.tenantId;
+      
+      if (!tenantId) {
+        return NextResponse.json(
+          { error: 'Tenant ID is required for admin users' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Parse body if not already parsed
+    if (!body) {
+      body = await request.json();
+    }
+    
     const { status, downloadSpeed, uploadSpeed, dataLimit, expiresAt } = body;
 
     // Verify the PPPoE user belongs to the ISP owner
@@ -71,7 +145,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       where: {
         id: params.id,
         customer: {
-          ispOwnerId: ispOwner.id
+          ispOwnerId: tenantId
         }
       }
     });
@@ -106,17 +180,51 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/pppoe-users/[id] - Delete a PPPoE user
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await auth(request);
-    if (!user || user.role !== 'ISP_OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authenticate(request);
+    
+    if (authResult instanceof NextResponse) {
+      return authResult;
     }
 
-    const ispOwner = await db.ispOwner.findUnique({
-      where: { userId: user.id }
-    });
+    const authError = authorize([UserRole.SUPER_ADMIN, UserRole.SUB_ADMIN, UserRole.ISP_OWNER])(authResult);
+    if (authError) {
+      return authError;
+    }
 
-    if (!ispOwner) {
-      return NextResponse.json({ error: 'ISP owner not found' }, { status: 404 });
+    // Determine tenant ID
+    let tenantId;
+    
+    if (authResult.user!.role === UserRole.ISP_OWNER) {
+      // For ISP owners, get their ISP owner record
+      // First try to use tenantId from the token if available
+      if (authResult.user!.tenantId) {
+        tenantId = authResult.user!.tenantId;
+      } else {
+        // If not available, look up by userId
+        const ispOwner = await db.ispOwner.findUnique({
+          where: { userId: authResult.user!.userId }
+        });
+        
+        if (!ispOwner) {
+          return NextResponse.json(
+            { error: 'ISP owner record not found' },
+            { status: 404 }
+          );
+        }
+        
+        tenantId = ispOwner.id;
+      }
+    } else {
+      // For super admin and sub admin, get tenantId from query params
+      const { searchParams } = new URL(request.url);
+      tenantId = searchParams.get('tenantId');
+      
+      if (!tenantId) {
+        return NextResponse.json(
+          { error: 'Tenant ID is required for admin users' },
+          { status: 400 }
+        );
+      }
     }
 
     // Verify the PPPoE user belongs to the ISP owner
@@ -124,7 +232,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: {
         id: params.id,
         customer: {
-          ispOwnerId: ispOwner.id
+          ispOwnerId: tenantId
         }
       }
     });
