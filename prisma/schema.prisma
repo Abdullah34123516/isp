@@ -1,0 +1,236 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SUB_ADMIN
+  ISP_OWNER
+  CUSTOMER
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum RouterStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+}
+
+enum PPPoEStatus {
+  ACTIVE
+  INACTIVE
+  DISABLED
+  EXPIRED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          UserRole
+  tenantId      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  ispOwner      IspOwner?
+  customer      Customer?
+  createdPlans  Plan[]   @relation("CreatedBy")
+  createdInvoices Invoice[]
+  payments      Payment[]
+
+  @@map("users")
+}
+
+model IspOwner {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  companyName String
+  address     String?
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  customers   Customer[]
+  plans       Plan[]
+  invoices    Invoice[]
+  routers     Router[]
+
+  @@map("isp_owners")
+}
+
+model Customer {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  ispOwnerId  String
+  name        String
+  email       String
+  phone       String?
+  address     String?
+  status      CustomerStatus @default(ACTIVE)
+  planId      String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id])
+  ispOwner    IspOwner      @relation(fields: [ispOwnerId], references: [id])
+  plan        Plan?         @relation(fields: [planId], references: [id])
+  invoices    Invoice[]
+  payments    Payment[]
+  pppoeUsers  PPPoEUser[]
+
+  @@map("customers")
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  speed       String   // e.g., "100 Mbps"
+  dataLimit   String?  // e.g., "100 GB"
+  validity    Int      // in days
+  ispOwnerId  String
+  createdBy   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ispOwner    IspOwner @relation(fields: [ispOwnerId], references: [id])
+  creator     User     @relation("CreatedBy", fields: [createdBy], references: [id])
+  customers   Customer[]
+  invoices    Invoice[]
+  pppoeUsers  PPPoEUser[]
+
+  @@map("plans")
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  invoiceNo   String        @unique
+  customerId  String
+  planId      String?
+  ispOwnerId  String?
+  amount      Float
+  dueDate     DateTime
+  status      InvoiceStatus @default(PENDING)
+  description String?
+  createdBy   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  plan        Plan?         @relation(fields: [planId], references: [id])
+  ispOwner    IspOwner?     @relation(fields: [ispOwnerId], references: [id])
+  creator     User          @relation(fields: [createdBy], references: [id])
+  payments    Payment[]
+
+  @@map("invoices")
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  invoiceId   String
+  customerId  String
+  amount      Float
+  status      PaymentStatus  @default(PENDING)
+  paymentDate DateTime?
+  transactionId String?
+  paymentMethod String?
+  notes       String?
+  createdBy   String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  invoice     Invoice        @relation(fields: [invoiceId], references: [id])
+  customer    Customer       @relation(fields: [customerId], references: [id])
+  user        User           @relation(fields: [createdBy], references: [id])
+
+  @@map("payments")
+}
+
+model Router {
+  id            String        @id @default(cuid())
+  name          String
+  ipAddress     String        @unique
+  port          Int           // Router API port (default 8728 for API, 8729 for API-SSL)
+  username      String
+  password      String
+  status        RouterStatus  @default(OFFLINE)
+  ispOwnerId    String
+  location      String?
+  model         String?
+  firmware      String?
+  lastConnected DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  ispOwner      IspOwner      @relation(fields: [ispOwnerId], references: [id])
+  pppoeUsers    PPPoEUser[]
+
+  @@map("routers")
+}
+
+model PPPoEUser {
+  id            String        @id @default(cuid())
+  username      String        @unique
+  password      String
+  customerId    String
+  routerId      String
+  planId        String
+  status        PPPoEStatus   @default(ACTIVE)
+  ipAddress     String?       // Assigned IP address
+  macAddress    String?       // Client MAC address
+  uptime        String?       // Connection uptime
+  downloadSpeed String?       // Download speed limit
+  uploadSpeed   String?       // Upload speed limit
+  dataLimit     String?       // Data limit
+  dataUsed      String?       // Data used
+  expiresAt     DateTime?
+  lastConnected DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  router        Router        @relation(fields: [routerId], references: [id])
+  plan          Plan          @relation(fields: [planId], references: [id])
+
+  @@map("pppoe_users")
+}
